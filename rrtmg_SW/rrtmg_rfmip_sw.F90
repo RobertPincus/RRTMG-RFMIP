@@ -47,7 +47,7 @@ program rrtmg_rfmip_sw
   use mo_rte_kind,           only: wp
   use mo_rfmip_io,           only: read_size, read_and_block_pt, &
     read_and_block_gases_ty, unblock_and_write, &
-    read_and_block_lw_bc, read_and_block_sw_bc, read_kdist_gas_names
+    read_and_block_lw_bc, read_and_block_sw_bc
   use mo_gas_concentrations, only: ty_gas_concs, get_subset_range
   use rrtmg_sw_rad,          only: rrtmg_sw
   use rrtmg_sw_init,         only: rrtmg_sw_ini
@@ -61,13 +61,12 @@ program rrtmg_rfmip_sw
   !
   ! Local variables
   !
-  character(len=132) :: rfmip_file, &
-    kdist_file = 'coefficients_sw.nc', &
-    flxdn_file = 'rsd_template.nc', flxup_file = 'rsu_template.nc'
+  character(len=132) :: rfmip_file =  'multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc', &
+    flxdn_file = 'rsd_Efx_RRTMG-SW-4-02_rad-irf_r1i1p1f1_gn.nc', flxup_file = 'rsu_Efx_RRTMG-SW-4-02_rad-irf_r1i1p1f1_gn.nc'
   integer :: nargs, ncol, nlay, nexp, nblocks, block_size, ret, &
     dumInt=0, ngpt=16
   logical :: top_at_1
-  integer :: b, icol, igpt, ilev, nband=1
+  integer :: i, b, icol, igpt, ilev, nband=1
   real(wp) :: tsi_scale
   character(len=6) :: block_size_char
 
@@ -81,7 +80,7 @@ program rrtmg_rfmip_sw
   real(wp), dimension(:,:), allocatable :: &
     swuflx , swdflx, swhr, swuflxc, swdflxc, swhrc, dum2D
 
-  ! gas concentrations (which differ by experiment, and some are 
+  ! gas concentrations (which differ by experiment, and some are
   ! global averages)
   real(wp), dimension(:,:), allocatable :: &
     h2o, co2, o3, n2o, co, ch4, o2, n2
@@ -96,15 +95,12 @@ program rrtmg_rfmip_sw
   type(ty_gas_concs), dimension(:), allocatable  :: gas_conc_array
   character(len=128) :: error_msg
 
-  rfmip_file = &
-    'multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-0-4_none.nc'
-
   nargs = command_argument_count()
   if(nargs >= 2) call get_command_argument(2, rfmip_file)
   if(nargs >= 3) call get_command_argument(3, flxup_file)
   if(nargs >= 4) call get_command_argument(4, flxdn_file)
 
-  ! How big is the problem? 
+  ! How big is the problem?
   ! Does it fit into blocks of the size we've specified?
   call read_size(rfmip_file, ncol, nlay, nexp)
   if(nargs >= 1) then
@@ -131,9 +127,9 @@ program rrtmg_rfmip_sw
   ! are we going surface to TOA or TOA to surface?
   top_at_1 = p_lay(1, 1, 1) < p_lay(1, nlay, 1)
 
-  ! RRTMGP won't run with pressure less than its minimum. The top 
-  ! level in the RFMIP file is set to 10^-3 Pa. Here we pretend the 
-  ! layer is just a bit less deep. This introduces an error but shows 
+  ! RRTMGP won't run with pressure less than its minimum. The top
+  ! level in the RFMIP file is set to 10^-3 Pa. Here we pretend the
+  ! layer is just a bit less deep. This introduces an error but shows
   ! input sanitizing. Pernak: just going with 10**-3
   if(top_at_1) then
     p_lev(:,1,:) = 1e-3
@@ -149,16 +145,6 @@ program rrtmg_rfmip_sw
   allocate(swuflx(block_size, nlay+1), swdflx(block_size, nlay+1), &
     swuflxc(block_size, nlay+1), swdflxc(block_size, nlay+1), &
     swhr(block_size, nlay), swhrc(block_size, nlay))
-
-  ! Names of gases known to the k-distribution.
-  ! Which gases will be included in the calculation?
-  ! By default we'll use all the gases the k-distribution can handle, 
-  ! but we could provide variants i.e. using equivalent concentrations 
-  ! per RFMIP
-  call read_kdist_gas_names(kdist_file, gases_to_use)
-  print *, "Radiation calculation uses gases "
-  print *, "  ", &
-    [(trim(gases_to_use(b)) // " ", b = 1, size(gases_to_use))]
 
   ! grab concentrations
   call read_and_block_gases_ty(rfmip_file, block_size, &
@@ -182,6 +168,7 @@ program rrtmg_rfmip_sw
 
   ! Loop over blocks
   call rrtmg_sw_ini(1004.64_wp)
+  do i = 1, 32
   do b = 1, nblocks
     error_msg = gas_conc_array(b)%get_vmr('h2o', h2o(:,:))
     error_msg = gas_conc_array(b)%get_vmr('co2', co2(:,:))
@@ -195,7 +182,7 @@ program rrtmg_rfmip_sw
     usecol(1:block_size) = &
       solar_zenith_angle(:,b) < 90._wp - 2._wp * spacing(90._wp)
 
-    ! RRTMG flux calculation; not sure if my defaults are entirely 
+    ! RRTMG flux calculation; not sure if my defaults are entirely
     ! correct (e.g., dyofyr, adjes, scon, isolve isolvar; see
     ! rrtmg_sw_rad.f90 doc)
     ! RRTMG inputs have to be surface to TOA
@@ -226,7 +213,7 @@ program rrtmg_rfmip_sw
 
       ! got the 1360.85 from Eli:
       ! https://rrtmgp2.slack.com/archives/D942AU7QE/p1525442449000187
-      ! it's also the solar constant used in RRTMG with scon = 0 and 
+      ! it's also the solar constant used in RRTMG with scon = 0 and
       ! isolvar = 0
       tsi_scale = total_solar_irradiance(icol,b) / 1360.85
 
@@ -237,7 +224,7 @@ program rrtmg_rfmip_sw
     end do ! columns
 
   end do ! blocks
-
+  end do
   ! End timers
   ret = gptlpr(block_size)
   ret = gptlfinalize()
@@ -248,4 +235,3 @@ program rrtmg_rfmip_sw
     flux_dn(:, nlay+1:1:-1, :))
 
 end program rrtmg_rfmip_sw
-

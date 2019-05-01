@@ -65,13 +65,12 @@ program rrtmg_rfmip_lw
   !
   ! Local variables
   !
-  character(len=132) :: rfmip_file, &
-    kdist_file = 'coefficients_lw.nc', &
-    flxdn_file = 'rld_template.nc', flxup_file = 'rlu_template.nc'
+  character(len=132) :: rfmip_file =  'multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-1-2_none.nc', &
+    flxdn_file = 'rld_Efx_RRTMG-LW-4-91_rad-irf_r1i1p1f1_gn.nc', flxup_file = 'rlu_Efx_RRTMG-LW-4-91_rad-irf_r1i1p1f1_gn.nc'
   integer :: nargs, ncol, nlay, nexp, nblocks, block_size, ret, &
     dumInt=0, ngpt=16
   logical :: top_at_1
-  integer :: b, icol, igpt, nband=1
+  integer :: i, b, icol, igpt, nband=1
   character(len=6) :: block_size_char
 
   character(len=32 ), dimension(:), allocatable :: gases_to_use
@@ -85,7 +84,7 @@ program rrtmg_rfmip_lw
   real(wp), dimension(:,:), allocatable :: &
     swuflx , swdflx, swhr, swuflxc, swdflxc, swhrc, dum2D
 
-  ! gas concentrations (which differ by experiment, and some are 
+  ! gas concentrations (which differ by experiment, and some are
   ! global averages)
   real(wp), dimension(:,:), allocatable :: &
     h2o, co2, o3, n2o, co, ch4, o2, n2, &
@@ -103,15 +102,12 @@ program rrtmg_rfmip_lw
 
   real(wp), dimension(:,:  ), allocatable :: sfc_emis ! block_size, nblocks
 
-  rfmip_file = &
-    'multiple_input4MIPs_radiation_RFMIP_UColorado-RFMIP-0-4_none.nc'
-
   nargs = command_argument_count()
   if(nargs >= 2) call get_command_argument(2, rfmip_file)
   if(nargs >= 3) call get_command_argument(3, flxup_file)
   if(nargs >= 4) call get_command_argument(4, flxdn_file)
 
-  ! How big is the problem? 
+  ! How big is the problem?
   ! Does it fit into blocks of the size we've specified?
   call read_size(rfmip_file, ncol, nlay, nexp)
   if(nargs >= 1) then
@@ -132,10 +128,10 @@ program rrtmg_rfmip_lw
 
   ! RRTMG needs surface T
   call read_and_block_lw_bc(rfmip_file, block_size, emiss_sfc, t_sfc)
-  ! RRTMG LW expects ncol x nband surface emissivity, but we have 
-  ! been providing it with block_size x nblocks; this worked for 
-  ! block sizes of 4, 8, and 100 with RFMIP's constant emissivity of 
-  ! 0.98, but a block size of 1800 crashes the program because the 
+  ! RRTMG LW expects ncol x nband surface emissivity, but we have
+  ! been providing it with block_size x nblocks; this worked for
+  ! block sizes of 4, 8, and 100 with RFMIP's constant emissivity of
+  ! 0.98, but a block size of 1800 crashes the program because the
   ! nblocks dimension is on 1, and RRTMG loops over more than 1 band
   ! (it loops over 16). this hack will work for now
   deallocate(emiss_sfc)
@@ -145,25 +141,15 @@ program rrtmg_rfmip_lw
   ! are we going surface to TOA or TOA to surface?
   top_at_1 = p_lay(1, 1, 1) < p_lay(1, nlay, 1)
 
-  ! RRTMGP won't run with pressure less than its minimum. The top 
-  ! level in the RFMIP file is set to 10^-3 Pa. Here we pretend the 
-  ! layer is just a bit less deep. This introduces an error but shows 
+  ! RRTMGP won't run with pressure less than its minimum. The top
+  ! level in the RFMIP file is set to 10^-3 Pa. Here we pretend the
+  ! layer is just a bit less deep. This introduces an error but shows
   ! input sanitizing. Pernak: just going with 10**-3
   if(top_at_1) then
     p_lev(:,1,:) = 1e-3
   else
     p_lev(:,nlay+1,:) = 1e-3
   end if
-
-  ! Names of gases known to the k-distribution.
-  ! Which gases will be included in the calculation?
-  ! By default we'll use all the gases the k-distribution can handle, 
-  ! but we could provide variants i.e. using equivalent concentrations 
-  ! per RFMIP
-  call read_kdist_gas_names(kdist_file, gases_to_use)
-  print *, "Radiation calculation uses gases "
-  print *, "  ", &
-    [(trim(gases_to_use(b)) // " ", b = 1, size(gases_to_use))]
 
   ! grab concentrations
   call read_and_block_gases_ty(rfmip_file, block_size, &
@@ -191,7 +177,7 @@ program rrtmg_rfmip_lw
 
   dum2D(:,:) = 0._wp
   dum3D(:,:,:) = 0._wp
-  cfc11(:,:) = 0._wp 
+  cfc11(:,:) = 0._wp
   cfc12(:,:) = 0._wp
   cfc22(:,:) = 0._wp
   ccl4(:,:) = 0._wp
@@ -216,6 +202,7 @@ program rrtmg_rfmip_lw
 
   ! Loop over blocks
   call rrtmg_lw_ini(cpdair)
+  do i = 1, 32
   do b = 1, nblocks
     error_msg = gas_conc_array(b)%get_vmr('h2o', h2o(:,:))
     error_msg = gas_conc_array(b)%get_vmr('co2', co2(:,:))
@@ -229,7 +216,7 @@ program rrtmg_rfmip_lw
     ret =  gptlstart('RRTMG (LW)')
     call rrtmg_lw(block_size, nlay, dumInt, 0, &
       p_lay(:,nlay:1:-1,b)/100.0, p_lev(:,nlay+1:1:-1,b)/100.0, &
-      t_lay(:,nlay:1:-1,b), t_lev(:,nlay+1:1:-1,b), t_sfc(:,b), & 
+      t_lay(:,nlay:1:-1,b), t_lev(:,nlay+1:1:-1,b), t_sfc(:,b), &
       h2o(:,nlay:1:-1), o3(:,nlay:1:-1), co2(:,nlay:1:-1), &
       ch4(:,nlay:1:-1), n2o(:,nlay:1:-1), o2(:,nlay:1:-1), &
       cfc11, cfc12, cfc22, ccl4, emiss_sfc, &
@@ -239,6 +226,7 @@ program rrtmg_rfmip_lw
       duflx_dt, duflxc_dt)
     ret =  gptlstop('RRTMG (LW)')
   end do
+  end do 
 
   ! End timers
   ret = gptlpr(block_size)
