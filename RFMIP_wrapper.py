@@ -13,7 +13,7 @@ import utils
 class driverRFMIP():
   def __init__(self, inVars, trial=1, blockSize=100):
     """
-    Run a driver got a given block size and rename its GPTL timing 
+    Run a driver got a given block size and rename its GPTL timing
     output. Block size by default is the number of RFMIP profiles
     """
     utils.file_check(inVars['exe'])
@@ -33,7 +33,7 @@ class driverRFMIP():
     sub.call([self.driverExe, str(self.blockSize)])
 
     # the driver should produce a "timing.block_size" file with GPTL
-    # output that we need to rename so we don't overwrite in other 
+    # output that we need to rename so we don't overwrite in other
     # iterations
     os.rename('timing.%d' % self.blockSize, \
       'timing.%d.%d.%s' % (self.iter, self.blockSize, self.model))
@@ -51,7 +51,7 @@ if __name__ == '__main__':
     'given number of iterations and block sizes. It is assumed ' + \
     'the driver implements GPTL and writes timing information to ' + \
     'timing.block_size files.')
-  parser.add_argument('-e', '--exe', type=str, default='rrtmg_rfmip_sw' % \
+  parser.add_argument('-e', '--exe', type=str, default='rrtmg_rfmip_sw', \
     help='Full path to driver executable.')
   parser.add_argument('-b', '--block_size', type=int, nargs='+', \
     default=[4, 8, 100, 1800], \
@@ -69,4 +69,3 @@ if __name__ == '__main__':
   # end iter loop
 
 # end main()
-
